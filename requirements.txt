@@ -1,0 +1,21 @@
+ 
+# Specify the Python version requirement
+python_version >= "3.12"
+
+# Install your Flask project that wraps kokoro-onnx
+git+https://github.com/yourusername/kokoro-onnx-flask.git#egg=kokoro-onnx-flask
+
+# Install the base kokoro-onnx library from the original author
+git+https://github.com/author/kokoro-onnx.git#egg=kokoro-onnx
+
+# Flask version 3.1.0 or later
+Flask==3.1.0
+
+# NumPy version 2.0.2
+numpy==2.0.2
+
+# SciPy version 1.15.1
+scipy==1.15.1
+
+# spaCy version 3.8.4
+spacy==3.8.4
