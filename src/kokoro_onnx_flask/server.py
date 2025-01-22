@@ -5,18 +5,32 @@ from flask import Flask, request, send_file, render_template
 import kokoro_onnx
 from kokoro_onnx import Kokoro
 from scipy.io.wavfile import write as wav_write
-#from memory_profiler import profile
-
 import spacy
+import argparse
+#from memory_profiler import profile
 
 # Set up logging
 #logging.getLogger(kokoro_onnx.__name__).setLevel("DEBUG")
 
+
 # Initialize Flask application
 app = Flask(__name__)
 
+
 # Initialize Kokoro with the model and voices file
-kokoro = Kokoro("kokoro-v0_19.onnx", "voices.bin")
+# Set up argument parser
+#python -m kokoro_onnx_flask.server --model kokoro-v0_19.onnx --voices voices.bin
+
+parser = argparse.ArgumentParser(description="Initialize Kokoro with specified ONNX model and voices file.")
+parser.add_argument("--model", required=True, help="Path to the ONNX file.")
+parser.add_argument("--voices", required=True, help="Path to the voices file.")
+
+# Parse arguments
+args = parser.parse_args()
+
+# Initialize Kokoro with arguments
+kokoro = Kokoro(args.model, args.voices)
+
 for voice in kokoro.get_voices():
     print(voice)
 
