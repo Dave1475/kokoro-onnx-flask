@@ -315,13 +315,13 @@
 
             // Create a button
             const button = document.createElement('button');
-            button.textContent = 'Retry';
+            button.textContent = 'Update this sentence';
             //button.disabled = true; // rewritten code, no way to modify mp3
             
             
             
             const IndexButton = document.createElement('button');
-            IndexButton.textContent = data.index;
+            IndexButton.textContent = "Select to Play";
 
             // Add event listener to the button
             button.addEventListener('click', () => {
@@ -359,8 +359,10 @@
 
             // Append the button to the outputContainer
             //retry button
-            outputContainer.appendChild(button);
             outputContainer.appendChild(IndexButton);
+            outputContainer.appendChild(document.createTextNode(' ')); // Adds a space
+            outputContainer.appendChild(button);
+            
 
 
         }
