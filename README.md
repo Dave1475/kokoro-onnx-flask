@@ -3,6 +3,13 @@
 A flask server for Kokoro-onnx
 
 ## Features:
+
+
+
+https://github.com/user-attachments/assets/811d5078-70fd-47d5-91bb-68892b7aff85
+
+
+
 Generates MP3 files from text input where paragraphs are separated by a blank line (an empty line between each paragraph), and combines them into a single MP3 file.
 
 Each paragraph's text can be individually edited and updated after audio is generated in case mistakes are found, instead of having to regenerate the entire chapter.
