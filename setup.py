@@ -12,7 +12,7 @@ setup(
         "spacy",
     ],
     # Optional metadata
-    author="Your Name",
+    author="Dave1475",
     description="Flask server wrapper for kokoro-onnx",
     url="https://github.com/Dave1475/kokoro-onnx-flask",
 )
