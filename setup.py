@@ -1,12 +1,13 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="kokoro-onnx-flask",  # Project name
-    version="0.1",             # Version of the project
-    packages=find_packages(),  # Automatically find packages
-    install_requires=[         # List of dependencies
+    name="kokoro-onnx-flask",
+    version="0.1",
+    packages=find_packages(where='src'),  # Look for packages inside 'src'
+    package_dir={'': 'src'},  # Tell setuptools where to find your packages
+    install_requires=[
         "flask",
-        "kokoro-onnx",  # Assuming kokoro-onnx is a separate installable package
+        "kokoro-onnx",
         "numpy",
         "scipy",
         "spacy",
