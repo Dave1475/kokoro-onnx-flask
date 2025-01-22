@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Kokoro TTS</title>
+</head>
+
+<body>
+    <div id="mp3outputContainer"></div>
+    <h1 id="demoTitle">Kokoro TTS</h1>
+
+    <label for="inputText">Input Text (Multiple Paragraphs):</label> <BR>
+    <textarea id="inputText" placeholder="Type here..." rows="4" cols="50"></textarea>
+
+    <BR>
+    <label for="speaker_id">Speaker:</label>
+    <select id="speaker_id"></select>
+
+    <BR>
+    <br>
+    <button onclick="synthesize()">Generate</button>
+    <button onclick="mergeAudio()" id="mergeAudio" disabled>Merge Audio to MP3</button>
+    <button onclick="playPause()" id="playPause" disabled>play / pause</button>
+    <label><input type="checkbox" id="chkOutput">Final MP3 Only</label>
+
+
+    <div id="outputContainer"></div>
+
+    <script src="{{ url_for('static', filename='lamemin.js') }}"></script>
+    <script>
+
+
+        var currentIndex = 0;
+        let audioContext = null;
+        let lastRound = 0;
+        let global_mp3Data = [];
+        let global_mp3Blob = null;
+        let mp3encoder = null;
+        let totalSamples = 0;
+        let durationInSecondsArray = [];
+        let selected_paragraph = -1;
+
+        let audioBlobs = [];
+        var paragraphs = "";
+
+        function populateDropdown(namesArray) {
+            const dropdown = document.getElementById('speaker_id');
+            // Clear existing options
+            dropdown.innerHTML = '';
+
+            // Add names from the array to the dropdown
+            namesArray.forEach((name, index) => {
+                const option = document.createElement('option');
+                option.value = name;
+                option.text = `${index}. ${name}`;
+                dropdown.add(option);
+            });
+        }
+
+        //List of voices:
+        const namesArray = ['af', 'af_bella', 'af_nicole', 'af_sarah', 'af_sky', 'am_adam', 'am_michael', 'bf_emma', 'bf_isabella', 'bm_george', 'bm_lewis'];
+        populateDropdown(namesArray);
+
+        const serverAddress = window.location.origin; // Get the current server's address
+        async function synthesize() {
+
+            audioBlobs = []; // Clear previous audio blobs
+            global_mp3Data = [];// Clear all global mp3 data
+            mp3encoder = null; // reset the encoder to null
+            totalSamples = 0;
+            durationInSecondsArray = [];
+            selected_paragraph = -1;
+
+            let inputText = document.getElementById('inputText').value;
+
+            // Replace variations of single quotes with a standard single quote
+            inputText = inputText.replace(/[\u2018\u2019\u201A]/g, "'");
+
+            // Replace variations of double quotes with a standard double quote
+            inputText = inputText.replace(/[\u201C\u201D\u201E]/g, '"');
+
+            // Set the modified value back to the input field
+            document.getElementById('inputText').value = inputText;
+
+            //inputText = replaceNumbers(inputText);
+
+            paragraphs = inputText.split(/\n\s*\n/).map(paragraph => paragraph.trim());
+            const _speakerId = document.getElementById('speaker_id').selectedIndex;
+            const _languageId = "en";
+
+            document.getElementById("demoTitle").innerHTML = "There are " + paragraphs.length + " paragraphs";
+            document.title = "Kokoro TTS, Len:" + paragraphs.length;
+
+            // Clear previous output
+            document.getElementById('outputContainer').innerHTML = '';
+            document.getElementById('mp3outputContainer').innerHTML = '';
+
+
+            let chkOutput = document.getElementById('chkOutput').checked;
+
+            !chkOutput && createSingleAudioPlayer();
+            chkOutput && durationInSecondsArray.push(0);
+            const timer = createTimer();
+            timer(); // Starts the timer and logs the start time
+
+
+            // Synthesize each paragraph sequentially
+            for (let index = 0; index < paragraphs.length; index++) {
+                const paragraph = paragraphs[index];
+                let text = paragraph;
+                let speakerId = _speakerId;
+                let languageId = _languageId;
+
+                let data = { text, speakerId: _speakerId, languageId: _languageId, blobIndex: audioBlobs.length, index };
+
+                let result = customVoice(text, speakerId, languageId);
+
+                speakerId = result.speakerId;
+                languageId = result.languageId;
+                text = result.text;
+
+                text = encodeURIComponent(text);
+                let str_speakerId = speakerId;
+                speakerId = encodeURIComponent(speakerId);
+                languageId = encodeURIComponent(languageId);
+
+                //console.log( result );
+
+                try {
+                    // Sending request to server
+
+                    let selectedVoice = namesArray[speakerId];
+                    const response = await fetch(`${serverAddress}/generate_audio?text=${text}&kokoro_speed=1.0&voice=${selectedVoice}`);
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! Status: ${response.status}`);
+                    }
+
+                    const blob = await response.blob();
+                    const mp3blob = await convertBlobToMp3(blob, chkOutput);
+
+                    document.title = "Kokoro TTS, Len:" + (index + 1) + "/" + paragraphs.length;
+                    let playPauseBtn = document.getElementById('playPause');
+                    let mergeAudio = document.getElementById('mergeAudio');
+
+                    if (chkOutput == false) {
+                        playPauseBtn.disabled = false;
+                        mergeAudio.disabled = false;
+                        audioBlobs.push(mp3blob); // Store each blob
+                        displayAudio(index, str_speakerId, audioBlobs.length - 1, false, data);
+                    } else {
+                        playPauseBtn.disabled = true;
+                        mergeAudio.disabled = true;
+                    }
+
+                } catch (error) {
+                    document.title = "Kokoro TTS, Len:" + (index + 1) + "/" + paragraphs.length;
+                    displayAudio(index, str_speakerId, audioBlobs.length - 1, true, data);
+                    console.error('Error:', error);
+                }
+            }
+
+            if (chkOutput == true) {
+                finalMp3 = mp3encoder.flush();
+                global_mp3Data.push(finalMp3);
+                addMergedMp3ToPage();
+            }
+
+            timer(); // Logs the elapsed time and resets the timer
+            cleanupAudioContext();
+        }
+
+
+        function createTimer() {
+            let startTime = null;
+
+            return function () {
+                if (startTime === null) {
+                    // First call: record the start time
+                    startTime = Date.now();
+                    console.log("Timer started at:", new Date(startTime).toLocaleTimeString());
+                } else {
+                    // Second call: calculate elapsed time, log it, and reset the timer
+                    const endTime = Date.now();
+                    const elapsed = endTime - startTime;
+                    console.log(`Elapsed time: ${(elapsed / 1000).toFixed(2)} seconds`);
+                    startTime = null;  // Reset for the next measurement
+                }
+            };
+        }
+
+
+        function cleanupAudioContext() {
+            if (audioContext) {
+                // Close the AudioContext to release resources
+                audioContext.close().then(() => {
+                    audioContext = null; // Reset the variable to null after closing
+                }).catch(err => {
+                    console.error("Failed to close AudioContext:", err);
+                });
+            }
+        }
+
+        function customVoice(text, speakerId, languageId) {
+            const pattern = /<((?:v=\d+|lan=\w+)(?:\s+(?:v=\d+|lan=\w+))?)>/;
+            const match = text.match(pattern);
+
+            if (match) {
+                const innerText = match[1];
+                const speakerPattern = /v=(\d+)/;
+                const languagePattern = /lan=(\w+)/;
+
+                const speakerMatch = innerText.match(speakerPattern);
+                const languageMatch = innerText.match(languagePattern);
+
+                if (speakerMatch) {
+                    speakerId = parseInt(speakerMatch[1]);
+                }
+
+                if (languageMatch) {
+                    languageId = languageMatch[1];
+                }
+
+                const modifiedText = text.replace(pattern, '').trim();
+
+                return {
+                    text: modifiedText,
+                    speakerId,
+                    languageId,
+                };
+            }
+
+            return {
+                text,
+                speakerId,
+                languageId,
+            };
+        }
+
+        async function retryGettingAudio(data) {
+
+            let text = data.text;
+            let speakerId = data.speakerId;
+            let languageId = data.languageId;
+
+            let result = customVoice(text, speakerId, languageId);
+
+            speakerId = result.speakerId;
+            languageId = result.languageId;
+            text = result.text;
+            paragraphs[data.index] = text;
+
+            text = encodeURIComponent(text);
+            let str_speakerId = speakerId;
+            speakerId = encodeURIComponent(speakerId);
+            languageId = encodeURIComponent(languageId);
+
+            try {
+                // Sending request to server
+                let selectedVoice = namesArray[speakerId];
+                const response = await fetch(`${serverAddress}/generate_audio?text=${text}&kokoro_speed=1.1&voice=${selectedVoice}`);
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+
+                const blob = await response.blob();
+                const mp3blob = await convertBlobToMp3(blob);
+                audioBlobs.splice(data.blobIndex, 1, mp3blob);
+            } catch (error) {
+                console.error('Error:', error);
+            }
+
+        }
+
+        function setMp3Blob(mp3Data) {
+            global_mp3Blob = new Blob(mp3Data, { type: 'audio/mp3' });
+        }
+
+
+        function createSingleAudioPlayer() {
+            const audioElement = document.createElement('audio');
+            audioElement.id = `singlePlayer`;
+            audioElement.number = 0;
+            audioElement.controls = true;
+
+            outputContainer.appendChild(audioElement);
+
+            audioElement.addEventListener("ended", function () {
+                if (audioBlobs[currentIndex + 1] != null) {
+                    let singlePlayer = document.getElementById('singlePlayer');
+                    setMp3Blob(audioBlobs[currentIndex + 1]);
+                    singlePlayer.src = URL.createObjectURL(global_mp3Blob);
+                    togglePlayPause(singlePlayer);
+                    currentIndex = currentIndex + 1;
+                } else {
+                    currentIndex = 0;
+                    setMp3Blob(audioBlobs[currentIndex]);
+                    singlePlayer.src = URL.createObjectURL(global_mp3Blob); 
+                }
+
+            });
+
+            audioElement.addEventListener("play", function () {
+                document.getElementById("demoTitle").innerHTML = paragraphs[currentIndex].replace(/</g, '<');
+
+            });
+
+        }
+
+
+        function displayAudio(index, speakerId, blobIndex, onerror = false, data) {
+
+            // Create a button
+            const button = document.createElement('button');
+            button.textContent = 'Retry';
+            //button.disabled = true; // rewritten code, no way to modify mp3
+            
+            
+            
+            const IndexButton = document.createElement('button');
+            IndexButton.textContent = data.index;
+
+            // Add event listener to the button
+            button.addEventListener('click', () => {
+                // Your event handling code here
+                data.text = document.getElementById("retrytext_" + data.index).value;
+                //console.log( data );
+                retryGettingAudio(data);
+            });
+
+            IndexButton.addEventListener('click', () => {
+                // Your event handling code here
+                currentIndex = data.index;
+                //console.log( data.index );
+                setMp3Blob(audioBlobs[currentIndex]);
+                singlePlayer.src = URL.createObjectURL(global_mp3Blob); //culprit
+            });
+
+
+            // Display output
+            const outputContainer = document.getElementById('outputContainer');
+            const outputLabel = document.createElement('p');
+            outputLabel.textContent = `Output for Paragraph ${index + 1}: Speaker id: ${speakerId}`;
+            outputContainer.appendChild(outputLabel);
+            //outputContainer.appendChild(audioElement);
+
+            const newInput = document.createElement('textarea');
+            newInput.rows = 4;
+            newInput.id = "retrytext_" + data.index;
+            newInput.textContent = data.text;
+            newInput.style.marginRight = '5px';
+            newInput.style.marginLeft = '5px';
+
+            outputContainer.appendChild(newInput);
+
+
+            // Append the button to the outputContainer
+            //retry button
+            outputContainer.appendChild(button);
+            outputContainer.appendChild(IndexButton);
+
+
+        }
+
+        function playPause() {
+
+            let singlePlayer = document.getElementById('singlePlayer');
+
+            if (singlePlayer.src == "") {
+                setMp3Blob(audioBlobs[currentIndex]);
+                singlePlayer.src = URL.createObjectURL(global_mp3Blob); //culprit
+            }
+            togglePlayPause(singlePlayer);
+        }
+
+        function togglePlayPause(audioElement) {
+            if (audioElement.paused) {
+                audioElement.play();
+            } else {
+                audioElement.pause();
+            }
+        }
+
+        async function mergeAudio() {
+
+            finilizeMergedAudio();
+            addMergedMp3ToPage();
+        }
+
+        async function finilizeMergedAudio() {
+
+            const sampleRate = 22050;
+            const mp3encoder = new lamejs.Mp3Encoder(1, sampleRate, 128);
+            const finalMp3 = mp3encoder.flush();
+            
+            let mergedMp3Data = [];
+            
+            for( let i=0; i < audioBlobs.length; i++ ){
+            	mergedMp3Data.push(...audioBlobs[i]);
+            }
+            
+            global_mp3Data = mergedMp3Data;
+            //global_mp3Data.push(finalMp3);
+
+        }
+
+        function addMergedMp3ToPage() {
+            // Create a Blob from MP3 data
+            const mp3Blob = new Blob(global_mp3Data, { type: 'audio/mp3' });
+
+            // Append audio element for merged MP3 file
+            const mergedAudioElement = document.createElement('audio');
+            mergedAudioElement.controls = true;
+            mergedAudioElement.src = URL.createObjectURL(mp3Blob);
+
+            if (durationInSecondsArray.length > 0) {
+                mergedAudioElement.addEventListener("timeupdate", function () {
+                    const currentTime = mergedAudioElement.currentTime;
+
+                    //preposition I since we're moving by 1 forward, constantly. unless we're not.
+                    let i = selected_paragraph > 0 ? selected_paragraph : 0;
+
+                    //roll back to the beginning if selected_paragraph ahead of time.
+                    if (durationInSecondsArray[i] > currentTime) {
+                        i = 0;
+                    }
+
+                    // Determine which chunk is currently playing
+                    let accumulatedDuration = 0;
+                    for (; i < durationInSecondsArray.length; i++) {
+                        accumulatedDuration = durationInSecondsArray[i];
+                        if (currentTime < accumulatedDuration) {
+                            //console.log(`Currently playing chunk ${i + 1}`);
+                            if (selected_paragraph != i) {
+                                document.getElementById("demoTitle").innerHTML = paragraphs[i - 1].replace(/</g, '<');
+                                selected_paragraph = i;
+                            }
+                            break;
+                        }
+                    }
+                });
+            }
+
+            // Display merged audio
+            const mp3outputContainer = document.getElementById('mp3outputContainer');
+            const mergedAudioLabel = document.createElement('p');
+            mergedAudioLabel.textContent = 'Merged Audio:';
+            mp3outputContainer.appendChild(mergedAudioLabel);
+            mp3outputContainer.appendChild(mergedAudioElement);
+
+            addControlButtons();
+
+        }
+
+        async function convertBlobToMp3(blob, mp3Only) {
+            const sampleRate = 22050;
+
+            //const audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate });
+            if (!audioContext || audioContext.state === 'closed') {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate });
+            }
+
+            const arrayBuffer = await blob.arrayBuffer();
+            const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+
+            // Convert Float32Array to Int16Array
+            function convertToPCM16(samples) {
+                const pcm = new Int16Array(samples.length);
+                for (let i = 0; i < samples.length; i++) {
+                    pcm[i] = Math.max(-1, Math.min(1, samples[i])) * 0x7FFF;
+                }
+                return pcm;
+            }
+
+            // Encode to MP3 using lamejs
+            if (mp3encoder == null || mp3Only == false) {
+                mp3encoder = new lamejs.Mp3Encoder(audioBuffer.numberOfChannels, sampleRate, 128);
+            }
+            const samples = convertToPCM16(audioBuffer.getChannelData(0));
+            const mp3Buffer = mp3encoder.encodeBuffer(samples);
+
+            if (mp3Only == true) {
+                global_mp3Data.push(mp3Buffer);
+                totalSamples += samples.length;
+                const durationInSeconds = totalSamples / sampleRate;
+                durationInSecondsArray.push(durationInSeconds);
+                //console.log(`Current MP3 duration: ${durationInSeconds.toFixed(2)} seconds`);
+                return null;
+            }
+
+            const mp3Data = [];
+            mp3Data.push(mp3Buffer);
+            const finalMp3 = mp3encoder.flush();
+            mp3Data.push(finalMp3);
+
+            //build up global MP3 using all the samples, will make editing imposible :/
+            //global_mp3Data.push(mp3Buffer);
+
+            // Create a Blob from MP3 data
+            //const mp3Blob = new Blob(mp3Data, { type: 'audio/mp3' });
+            return mp3Data;
+        }
+
+
+        function createWavFile(audioBuffer) {
+            // Use only the first channel directly
+            const monoChannelData = audioBuffer.getChannelData(0);
+
+            const wavBuffer = new ArrayBuffer(44 + monoChannelData.length * 2);
+            const view = new DataView(wavBuffer);
+
+            // RIFF header
+            writeString(view, 0, 'RIFF');
+            view.setUint32(4, 36 + monoChannelData.length * 2, true); // Adjust for single channel
+            writeString(view, 8, 'WAVE');
+
+            // FMT subchunk
+            writeString(view, 12, 'fmt ');
+            view.setUint32(16, 16, true);
+            view.setUint16(20, 1, true); // Audio format (PCM)
+            view.setUint16(22, 1, true); // Number of channels (1 for mono)
+            view.setUint32(24, 22050, true); // Sample rate
+            view.setUint32(28, 22050 * 2, true); // Byte rate (sample rate * bytes per sample)
+            view.setUint16(32, 2, true); // Block align (bytes per sample)
+            view.setUint16(34, 16, true); // Bits per sample
+
+            // Data subchunk
+            writeString(view, 36, 'data');
+            view.setUint32(40, monoChannelData.length * 2, true); // Adjust for single channel
+
+            // Write PCM samples as 16-bit integers
+            for (let i = 0; i < monoChannelData.length; i++) {
+                view.setInt16(44 + i * 2, monoChannelData[i] * 0x7FFF, true);
+            }
+
+            return wavBuffer;
+        }
+
+
+
+        function interleave(leftChannel, rightChannel) {
+            const length = leftChannel.length + rightChannel.length;
+            const result = new Float32Array(length);
+
+            let inputIndex = 0;
+
+            for (let index = 0; index < length;) {
+                result[index++] = leftChannel[inputIndex];
+                result[index++] = rightChannel[inputIndex];
+                inputIndex++;
+            }
+
+            return result;
+        }
+
+        function writeString(view, offset, string) {
+            for (let i = 0; i < string.length; i++) {
+                view.setUint8(offset + i, string.charCodeAt(i));
+            }
+        }
+
+       
+
+        // Function to find the audio element
+        function findAudioElement() {
+            const container = document.getElementById('mp3outputContainer');
+            return container ? container.querySelector('audio') : null;
+        }
+
+        // Function to create and add control buttons
+        function addControlButtons() {
+            const container = document.getElementById('mp3outputContainer');
+            if (!container) return;
+
+            const controlsDiv = document.createElement('div');
+            controlsDiv.className = 'audio-controls';
+
+            const backButton = createButton('⏪ -10s', () => adjustTime(-10));
+            const forwardButton = createButton('⏩ +10s', () => adjustTime(10));
+            const jumpInput = document.createElement('input');
+            jumpInput.type = 'text';
+            jumpInput.placeholder = 'HH:MM:SS';
+            const jumpButton = createButton('Jump', () => jumpToTime(jumpInput.value));
+
+            controlsDiv.append(backButton, jumpInput, jumpButton, forwardButton);
+            container.appendChild(controlsDiv);
+        }
+
+        // Helper function to create a button
+        function createButton(text, onClick) {
+            const button = document.createElement('button');
+            button.textContent = text;
+            button.addEventListener('click', onClick);
+            return button;
+        }
+
+        // Function to adjust time (move forward or backward)
+        function adjustTime(seconds) {
+            const audio = findAudioElement();
+            if (audio) {
+                audio.currentTime = Math.max(0, audio.currentTime + seconds);
+            }
+        }
+
+        // Function to jump to a specific time
+        function jumpToTime(timeString) {
+            const audio = findAudioElement();
+            if (!audio) return;
+
+            const seconds = parseTimeString(timeString);
+            if (seconds !== null) {
+                audio.currentTime = Math.min(Math.max(0, seconds), audio.duration);
+            }
+        }
+
+        // Helper function to parse time string
+        function parseTimeString(timeString) {
+            const parts = timeString.split(':').map(part => parseInt(part, 10));
+            if (parts.some(isNaN)) return null;
+
+            let seconds = 0;
+            if (parts.length === 3) {
+                seconds = parts[0] * 3600 + parts[1] * 60 + parts[2];
+            } else if (parts.length === 2) {
+                seconds = parts[0] * 60 + parts[1];
+            } else if (parts.length === 1) {
+                seconds = parts[0];
+            } else {
+                return null;
+            }
+
+            return seconds;
+        }
+
+
+    </script>
+</body>
+
+</html>
