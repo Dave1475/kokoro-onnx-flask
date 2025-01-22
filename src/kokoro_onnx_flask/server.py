@@ -177,7 +177,7 @@ def generate_audio():
     
     # Create a single WAV file from the combined samples
     output_stream = io.BytesIO()
-    print( sample_rate )
+    #print( sample_rate )
     wav_write(output_stream, sample_rate, combined_samples)
     output_stream.seek(0)
     
