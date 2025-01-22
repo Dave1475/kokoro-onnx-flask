@@ -16,7 +16,7 @@ import spacy
 app = Flask(__name__)
 
 # Initialize Kokoro with the model and voices file
-kokoro = Kokoro("kokoro-quant-gpu.onnx", "voices.bin")
+kokoro = Kokoro("kokoro-v0_19.onnx", "voices.bin")
 for voice in kokoro.get_voices():
     print(voice)
 
