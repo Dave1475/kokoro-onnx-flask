@@ -9,4 +9,4 @@ Generates MP3 files from text input where sentences are separated by a blank lin
 pip install git+https://github.com/Dave1475/kokoro-onnx-flask.git@main#egg=kokoro-onnx-flask
 
 ## Use
-python -m kokoro_onnx_flask.server
+python -m kokoro_onnx_flask.server  --model kokoro-v0_19.onnx --voices voices.bin
