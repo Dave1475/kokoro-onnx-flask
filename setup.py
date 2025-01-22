@@ -3,8 +3,12 @@ from setuptools import setup, find_packages
 setup(
     name="kokoro-onnx-flask",
     version="0.1",
-    packages=find_packages(where='src'),  # Look for packages inside 'src'
-    package_dir={'': 'src'},  # Tell setuptools where to find your packages
+    packages=find_packages(where='src'),
+    package_dir={'': 'src'},
+    include_package_data=True,  # Include non-code files specified in MANIFEST.in
+    package_data={
+        "kokoro_onnx_flask": ["static/*", "templates/*"],  # Specify file patterns
+    },
     install_requires=[
         "flask",
         "kokoro-onnx",
