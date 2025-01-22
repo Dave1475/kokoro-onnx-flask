@@ -20,9 +20,6 @@ kokoro = Kokoro("kokoro-v0_19.onnx", "voices.bin")
 for voice in kokoro.get_voices():
     print(voice)
 
-# Function to split text into chunks, ensuring no word is split in half
-import spacy
-
 # Load spaCy's English model
 nlp = spacy.load("en_core_web_sm")
 
