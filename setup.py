@@ -10,11 +10,11 @@ setup(
         "kokoro_onnx_flask": ["static/*", "templates/*"],  # Specify file patterns
     },
     install_requires=[
-        "flask>=3.1.0,<4.0",
-        "kokoro-onnx>=1.0.0,<2.0",
-        "numpy>=2.0.2,<3.0",
-        "scipy>=1.15.1,<2.0",
-        "spacy>=3.8.4,<4.0",
+        "flask>=3.1.0",
+        "kokoro-onnx>=1.0.0",
+        "numpy>=2.0.2",
+        "scipy>=1.15.1",
+        "spacy>=3.8.4",
     ],
     # Optional metadata
     author="Dave1475",
