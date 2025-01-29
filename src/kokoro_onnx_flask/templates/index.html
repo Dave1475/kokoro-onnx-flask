@@ -453,7 +453,7 @@
             mp3outputContainer.appendChild(mergedAudioLabel);
             mp3outputContainer.appendChild(mergedAudioElement);
 
-            addControlButtons();
+            addControlButtons(mergedAudioElement);
 
         }
 
@@ -564,28 +564,20 @@
             }
         }
 
-       
-
-        // Function to find the audio element
-        function findAudioElement() {
-            const container = document.getElementById('mp3outputContainer');
-            return container ? container.querySelector('audio') : null;
-        }
-
         // Function to create and add control buttons
-        function addControlButtons() {
+        function addControlButtons( audioElement ) {
             const container = document.getElementById('mp3outputContainer');
             if (!container) return;
 
             const controlsDiv = document.createElement('div');
             controlsDiv.className = 'audio-controls';
 
-            const backButton = createButton('⏪ -10s', () => adjustTime(-10));
-            const forwardButton = createButton('⏩ +10s', () => adjustTime(10));
+            const backButton = createButton('⏪ -10s', () => adjustTime(audioElement, -10));
+            const forwardButton = createButton('⏩ +10s', () => adjustTime(audioElement, 10));
             const jumpInput = document.createElement('input');
             jumpInput.type = 'text';
             jumpInput.placeholder = 'HH:MM:SS';
-            const jumpButton = createButton('Jump', () => jumpToTime(jumpInput.value));
+            const jumpButton = createButton('Jump', () => jumpToTime(audioElement, jumpInput.value));
 
             controlsDiv.append(backButton, jumpInput, jumpButton, forwardButton);
             container.appendChild(controlsDiv);
@@ -600,16 +592,16 @@
         }
 
         // Function to adjust time (move forward or backward)
-        function adjustTime(seconds) {
-            const audio = findAudioElement();
+        function adjustTime(audioElement, seconds) {
+            const audio = audioElement;
             if (audio) {
                 audio.currentTime = Math.max(0, audio.currentTime + seconds);
             }
         }
 
         // Function to jump to a specific time
-        function jumpToTime(timeString) {
-            const audio = findAudioElement();
+        function jumpToTime(audioElement, timeString) {
+            const audio = audioElement;
             if (!audio) return;
 
             const seconds = parseTimeString(timeString);
