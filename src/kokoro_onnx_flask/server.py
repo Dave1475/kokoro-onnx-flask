@@ -134,7 +134,8 @@ def chunk_text(text, max_chunk_size=250):
 # Define the route for audio generation
 @app.route('/')
 def home():
-    return render_template('index.html')
+    voices_list = kokoro.get_voices()  # Get the list of voices
+    return render_template('index.html', voices=voices_list)
     
 @app.route("/generate_audio", methods=["GET"])
 #@profile
