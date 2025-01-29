@@ -11,7 +11,7 @@ setup(
     },
     install_requires=[
         "flask>=3.1.0",
-        "kokoro-onnx=0.3.6",
+        "kokoro-onnx>=0.3.6",
         "numpy>=2.0.2",
         "scipy>=1.15.1",
         "spacy>=3.8.4",
