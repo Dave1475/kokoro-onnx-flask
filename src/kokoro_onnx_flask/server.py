@@ -31,11 +31,16 @@ args = parser.parse_args()
 # Initialize Kokoro with arguments
 kokoro = Kokoro(args.model, args.voices)
 
+global_voices_list = kokoro.get_voices()
 for voice in kokoro.get_voices():
     print(voice)
 
 # Load spaCy's English model
 nlp = spacy.load("en_core_web_sm")
+
+def get_voice_from_hash_key(voice_hash):      
+    index = voice_hash % len(global_voices_list)
+    return global_voices_list[index]
 
 def chunk_text(text, max_chunk_size=250):
     doc = nlp(text)
@@ -143,7 +148,11 @@ def generate_audio():
     text = request.args.get('text', default="", type=str)
     voice = request.args.get('voice', default="af_sarah", type=str) or "af_sarah"
     speed = request.args.get('kokoro_speed', default=1.0, type=float) or 1.0
+    voice_hash = request.args.get('voice_hash', default=1, type=int)
     
+    if voice_hash > 1:
+        voice = get_voice_from_hash_key(voice_hash)
+        
     if not text:
         return "Text parameter is required", 400
 
