@@ -1,3 +1,5 @@
+#this was writen to work with Kokoro, not Kokoro_onnx.
+
 import io
 from flask import Flask, request, send_file, render_template, jsonify, Response
 from io import BytesIO
