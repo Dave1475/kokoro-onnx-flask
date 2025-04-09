@@ -1,5 +1,3 @@
-#this was writen to work with Kokoro, not Kokoro_onnx.
-
 import io
 from flask import Flask, request, send_file, render_template, jsonify, Response
 from io import BytesIO
@@ -19,7 +17,6 @@ import torch
 import random
 import re
 
-
 app = Flask(__name__)
 CORS(app) 
 
@@ -27,6 +24,7 @@ CORS(app)
 # 🇯🇵 'j' => Japanese: pip install misaki[ja]
 # 🇨🇳 'z' => Mandarin Chinese: pip install misaki[zh]
 pipeline = KPipeline(lang_code='a')  # Ensure lang_code matches voice
+#nlp = spacy.load("en_core_web_sm")
 global_time = 0
 
 global_voices_list = [
@@ -46,7 +44,6 @@ def get_voice_from_hash_key(voice_hash):
     if index1 == index2:  # Ensure different voices
         index2 = (index2 + 1) % len(global_voices_list)
     return f"{global_voices_list[index1]},{global_voices_list[index2]}"
-
 
 def generate_audio(text: str, voice: str, speed: float = 1.0):
     #words = text.split()  # Split input into words
@@ -173,7 +170,6 @@ def is_phoneme(token):
     return any(phoneme in token for phoneme in phonemes)
 
 
-
 def create_mp3_response(audio_stream, sample_rate, voice_data):
     # Read the raw audio data from the BytesIO stream
     # Read the raw audio data from the BytesIO stream
@@ -202,7 +198,7 @@ def create_mp3_response(audio_stream, sample_rate, voice_data):
     mp3_stream.seek(0)
 
     # Decide whether to return the MP3 as base64 or as an attachment
-    returnAsBase64 = False
+    returnAsBase64 = True
     if not returnAsBase64:
         print("Returning audio/mp3 with boundaryData header")
         response = send_file(
@@ -212,6 +208,7 @@ def create_mp3_response(audio_stream, sample_rate, voice_data):
         )
         safe_voice_data = base64.b64encode(voice_data.encode("utf-8")).decode("ascii")
         response.headers["boundaryData"] = safe_voice_data
+        response.headers["Access-Control-Expose-Headers"] = "boundaryData"
         return response
     else:
         mp3_base64 = base64.b64encode(mp3_stream.read()).decode("utf-8")
@@ -260,20 +257,18 @@ def generate_response(audio_stream, voice_data):
     # Get the size of the audio stream
     wav_size = len(audio_stream.getvalue())
     
-    # Create a BytesIO object with the preallocated size
+
     response_stream = io.BytesIO()
     response_stream.write(audio_stream.read())
     
-
-    # Seek to the beginning of the response stream
     response_stream.seek(0)
-    
-    # Return the response as a file
 
     response = Response(response_stream.getvalue(), content_type="audio/wav")
 
     safe_voice_data = base64.b64encode(voice_data.encode("utf-8")).decode("ascii")
     response.headers["boundaryData"] = safe_voice_data
+    response.headers["Access-Control-Expose-Headers"] = "boundaryData"
+
     return response
 
 # Define the routes
@@ -287,7 +282,9 @@ def home():
 def generate_and_stream_audio():
 
     torch.cuda.empty_cache()
+
     start_time = time.time()
+
 
     text = request.args.get('text', default="", type=str)
     voice = request.args.get('voice', default="af_sarah", type=str) or "af_sarah"
