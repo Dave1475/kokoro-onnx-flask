@@ -116,9 +116,9 @@ def generate_audio(text: str, voice: str, speed: float = 1.0):
 
                     adjustedIndex = token_index + (len(token.text) - len(token.text.lstrip(' ')))
                     
-                    if start_time > 0:
+                    if start_time >= 0 and token.text.strip() != "" and token.start_ts is not None:
                         voice_data += f"{start_time:.3f} {token.text.lstrip(' ')} {adjustedIndex}\n"
-                    elif current_token_end > 0:
+                    elif current_token_end >= 0:
                         voice_data += f"{current_token_end:.3f} {token.text.lstrip(' ')} {adjustedIndex}\n"
                     
                     if token.end_ts is not None:
