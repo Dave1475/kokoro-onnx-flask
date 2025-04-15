@@ -1,3 +1,5 @@
+#written to work with https://github.com/hexgrad/kokoro
+
 import io
 from flask import Flask, request, send_file, render_template, jsonify, Response
 from io import BytesIO
